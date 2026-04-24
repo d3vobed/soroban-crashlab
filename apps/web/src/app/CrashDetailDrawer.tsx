@@ -133,7 +133,18 @@ export default function CrashDetailDrawer({ run, onClose, onReplayComplete }: Cr
                         </div>
 
                         <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 p-4">
-                            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">Replay Action</p>
+                            <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Replay Action</p>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(run.crashDetail!.replayAction);
+                                    }}
+                                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                                >
+                                    Copy
+                                </button>
+                            </div>
                             <p className="font-mono text-xs whitespace-pre-wrap break-words">{run.crashDetail.replayAction}</p>
                         </div>
 
