@@ -157,7 +157,7 @@ pub fn run_simulation_with_timeout<F>(
     simulator: F,
 ) -> CrashSignature
 where
-    F: FnOnce(&CaseSeed) -> CrashSignature + Send + 'static,
+    F: FnMut(&CaseSeed) -> CrashSignature + Send + 'static,
 {
     run_simulation_with_timeout_seeded_runner(seed, config, simulator)
 }

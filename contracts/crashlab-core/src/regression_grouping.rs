@@ -262,12 +262,14 @@ mod tests {
         assert_eq!(ke.domain, FailureClass::EmptyInput);
         assert_eq!(ke.failure_mode, "empty-input");
 
+        let b1_category = b1.signature.category.clone();
         let bundles = [b1, b2, b3, empty];
         let map = group_bundles_by_regression_group(&bundles);
         assert_eq!(map.len(), 2);
+        // The failure_mode is now based on the actual signature category
         let auth_rt = RegressionGroupKey {
             domain: FailureClass::Auth,
-            failure_mode: "runtime-failure".into(),
+            failure_mode: b1_category,
         };
         assert_eq!(map.get(&auth_rt).map(|v| v.len()), Some(2));
     }

@@ -20,9 +20,10 @@ fn simulation_runner_bridge_closure_runs_and_can_timeout() {
 
     // Timeout path
     let cfg = SimulationTimeoutConfig::new(5);
-    let sig = run_simulation_with_timeout(&seed, &cfg, |_s| {
+    let seed_clone = seed.clone();
+    let sig = run_simulation_with_timeout(&seed, &cfg, move |_s| {
         std::thread::sleep(std::time::Duration::from_millis(50));
-        crashlab_core::classify(&seed)
+        crashlab_core::classify(&seed_clone)
     });
     assert_eq!(sig.category, "timeout");
 }

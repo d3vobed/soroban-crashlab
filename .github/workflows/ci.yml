@@ -48,6 +48,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: bash -n scripts/backlog-freshness-review.sh
+      - run: bash -n scripts/contracts/build-soroban-example.sh
 
   regression:
     needs: [core, web]
