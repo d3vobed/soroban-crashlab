@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, type MouseEvent } from 'react';
 
 /**
  * Accessible Keyboard Navigation Blueprint
@@ -42,6 +42,29 @@ export default function AddAccessibleKeyboardNavBlueprint() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  const handleSkipLinkClick = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    const target = document.getElementById('main-content');
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const restoreTabIndex = target.getAttribute('tabindex') === null;
+    if (restoreTabIndex) {
+      target.setAttribute('tabindex', '-1');
+    }
+
+    target.focus({ preventScroll: true });
+    target.scrollIntoView({ block: 'start' });
+
+    if (restoreTabIndex) {
+      window.setTimeout(() => {
+        target.removeAttribute('tabindex');
+      }, 0);
+    }
+  }, []);
 
   const toggleHelp = useCallback(() => {
     setIsHelpOpen((prev) => !prev);
@@ -130,6 +153,7 @@ export default function AddAccessibleKeyboardNavBlueprint() {
       {/* Skip to Content Link - Hidden until focused (WCAG 2.4.1) */}
       <a
         href="#main-content"
+        onClick={handleSkipLinkClick}
         className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-blue-600 focus:text-white focus:rounded-lg focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all font-medium"
       >
         Skip to main content

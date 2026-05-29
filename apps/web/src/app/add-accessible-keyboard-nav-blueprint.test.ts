@@ -45,6 +45,8 @@ describe('Accessible Keyboard Navigation Blueprint', () => {
     it('should implement skip to content link', () => {
       expect(blueprintContent.toLowerCase()).toContain('skip to');
       expect(blueprintContent).toContain('#main-content');
+      expect(blueprintContent).toContain('handleSkipLinkClick');
+      expect(blueprintContent).toContain('focus({ preventScroll: true })');
     });
 
     it('should have keyboard shortcut trigger button', () => {
