@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import type { FuzzingRun, LedgerStateChange } from '../../types';
 import RunIssueLinkPage53 from '../../add-run-issue-link-page-53';
-import RunStatusTimeline from '../../RunStatusTimeline';
+import RunTimeline from './RunTimeline';
 import DownloadArtifactsButton from './DownloadArtifactsButton';
 import StateChangeDiffView from '../../add-state-change-diff-view';
 
@@ -61,7 +61,7 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
                 </div>
 
                 <div className="mb-8">
-                    <RunStatusTimeline
+                    <RunTimeline
                         status={run.status}
                         queuedAt={formatDate(run.queuedAt)}
                         startedAt={formatDate(run.startedAt)}
