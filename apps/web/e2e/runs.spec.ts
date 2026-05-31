@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const baseUrl = process.env.TEST_BASE_URL ?? process.env.BASE_URL ?? 'http://localhost:3000';
 
@@ -10,7 +10,13 @@ const mockRuns = [
     severity: 'high',
     duration: 180000,
     seedCount: 12500,
+    crashDetail: null,
     cpuInstructions: 12300000,
+    memoryBytes: 524288000,
+    minResourceFee: 17500,
+    queuedAt: '2026-05-31T09:00:00.000Z',
+    startedAt: '2026-05-31T09:01:00.000Z',
+    finishedAt: '2026-05-31T09:04:00.000Z',
   },
   {
     id: 'run-1002',
@@ -19,7 +25,18 @@ const mockRuns = [
     severity: 'critical',
     duration: 240000,
     seedCount: 18200,
+    crashDetail: {
+      failureCategory: 'authorization',
+      signature: 'auth-overflow',
+      payload: 'AAAA',
+      replayAction: 'soroban test --replay run-1002',
+    },
     cpuInstructions: 15200000,
+    memoryBytes: 629145600,
+    minResourceFee: 22000,
+    queuedAt: '2026-05-31T09:05:00.000Z',
+    startedAt: '2026-05-31T09:06:00.000Z',
+    finishedAt: '2026-05-31T09:10:00.000Z',
   },
   {
     id: 'run-1003',
@@ -28,28 +45,63 @@ const mockRuns = [
     severity: 'medium',
     duration: 90000,
     seedCount: 9800,
+    crashDetail: null,
     cpuInstructions: 8100000,
+    memoryBytes: 419430400,
+    minResourceFee: 14250,
+    queuedAt: '2026-05-31T09:15:00.000Z',
+    startedAt: '2026-05-31T09:16:00.000Z',
   },
 ];
 
+const fulfillRunsRequest = async (page: Page, body: unknown, status = 200) => {
+  await page.route('**/api/runs', async (route) => {
+    const requestUrl = new URL(route.request().url());
+    expect(requestUrl.pathname).toBe('/api/runs');
+
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  });
+};
+
 test.describe('Runs list', () => {
   test('loads and renders the fuzzing runs list', async ({ page }) => {
-    await page.route('**/api/runs', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ runs: mockRuns, total: mockRuns.length }),
-      });
-    });
+    await fulfillRunsRequest(page, { runs: mockRuns, total: mockRuns.length });
 
-    await page.goto(`${baseUrl}/runs`, { waitUntil: 'networkidle' });
+    const runsResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/runs' && response.status() === 200,
+    );
+
+    await page.goto(`${baseUrl}/runs`);
+    await runsResponse;
 
     await expect(page.getByRole('heading', { name: 'Fuzzing Runs' })).toBeVisible();
     await expect(page.getByText(`${mockRuns.length} Total Runs`)).toBeVisible();
-    await expect(page.locator('tbody tr')).toHaveCount(mockRuns.length);
-    await expect(page.getByText('#1001')).toBeVisible();
-    await expect(page.getByText('#1002')).toBeVisible();
-    await expect(page.getByText('critical')).toBeVisible();
+
+    const table = page.getByRole('table');
+    await expect(table.getByRole('columnheader', { name: /run identifier/i })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: /status/i })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: /severity/i })).toBeVisible();
+
+    const rows = table.locator('tbody tr');
+    await expect(rows).toHaveCount(mockRuns.length);
+
+    await expect(rows.nth(0)).toContainText('#1003');
+    await expect(rows.nth(0)).toContainText('running');
+    await expect(rows.nth(0)).toContainText('medium');
+
+    await expect(rows.nth(1)).toContainText('#1002');
+    await expect(rows.nth(1)).toContainText('failed');
+    await expect(rows.nth(1)).toContainText('critical');
+    await expect(rows.nth(1)).toContainText('18,200');
+
+    await expect(rows.nth(2)).toContainText('#1001');
+    await expect(rows.nth(2)).toContainText('completed');
+    await expect(rows.nth(2)).toContainText('high');
   });
 
   test('shows an error state when the runs API fails and recovers after retry', async ({ page }) => {
@@ -74,12 +126,18 @@ test.describe('Runs list', () => {
       });
     });
 
-    await page.goto(`${baseUrl}/runs`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseUrl}/runs`);
 
     await expect(page.getByText('Failed to load fuzzing runs')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Retry' })).toBeVisible();
 
+    const retryResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === '/api/runs' && response.status() === 200,
+    );
+
     await page.getByRole('button', { name: 'Retry' }).click();
+    await retryResponse;
 
     await expect(page.getByRole('heading', { name: 'Fuzzing Runs' })).toBeVisible();
     await expect(page.locator('tbody tr')).toHaveCount(mockRuns.length);
