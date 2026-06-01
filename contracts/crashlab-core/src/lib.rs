@@ -16,6 +16,8 @@ pub use runner::{ContractRunner, RunnerError, RunnerCreationError, create_runner
 #[cfg(feature = "host-runner")]
 pub mod host_runner;
 
+pub mod rpc_runner;
+
 pub use auth_matrix::{
 
     AuthMode, MatrixReport, ModeResult, collect_mismatched, format_mismatch_summary, run_matrix,
@@ -42,6 +44,8 @@ pub use suite_runner::{GroupSummary, GroupStats, SuiteRunnerConfig};
 
 #[cfg(feature = "host-runner")]
 pub use host_runner::HostContractRunner;
+
+pub use rpc_runner::{RpcContractRunner, RpcConfigError};
 
 pub mod seed_validator;
 pub use seed_validator::{SeedSchema, SeedValidationError, Validate};
