@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from './ThemeProvider';
 import { useEffect, useRef, useState } from 'react';
+import { useMaintainerMode } from '../app/useMaintainerMode';
 
-const navItems = [
+const allNavItems = [
   { href: '/', label: 'Dashboard', icon: '◉' },
   { href: '/runs', label: 'Runs', icon: '⊞' },
   { href: '/analytics', label: 'Analytics', icon: '⊟' },
@@ -19,9 +20,12 @@ const navItems = [
 export default function NavBar() {
   const pathname = usePathname();
   const { theme, toggle, mounted } = useTheme();
+  const { isMaintainer, mounted: mmMounted } = useMaintainerMode();
   const [scrolled, setScrolled] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
+  const showMaintainer = mmMounted && isMaintainer;
+  const navItems = showMaintainer ? allNavItems : allNavItems.filter(i => i.href !== '/maintainer');
 
   useEffect(() => {
     const handleScroll = () => {

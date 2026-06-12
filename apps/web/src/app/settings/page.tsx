@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useMaintainerMode } from '../useMaintainerMode';
 
 export default function SettingsPage() {
+  const { isMaintainer, toggle: toggleMaintainer, mounted } = useMaintainerMode();
   return (
     <div className="container-full page-padding fade-in">
       <div className="mb-4 sm:mb-6">
@@ -38,21 +40,54 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="card card-padding">
-        <h3 className="font-semibold text-sm mb-4" style={{ color: '#666666' }}>Current Configuration</h3>
-        <div className="space-y-3">
-          {[
-            { label: 'API URL', value: process.env.NEXT_PUBLIC_API_URL || 'Not configured (using mock data)' },
-            { label: 'Environment', value: process.env.NEXT_PUBLIC_VERCEL_ENV || 'Development' },
-            { label: 'Mock Data', value: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== 'false' ? 'Enabled' : 'Disabled', color: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== 'false' ? '#057642' : '#CC1016' },
-          ].map((info) => (
-            <div key={info.label} className="flex justify-between items-center py-1">
-              <span className="text-meta">{info.label}</span>
-              <span className="text-sm font-medium" style={{ color: info.color || '#191919' }}>{info.value}</span>
+        <div className="card card-padding">
+          <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>Current Configuration</h3>
+          <div className="space-y-3">
+            {[
+              { label: 'API URL', value: process.env.NEXT_PUBLIC_API_URL || 'Not configured (using mock data)' },
+              { label: 'Environment', value: process.env.NEXT_PUBLIC_VERCEL_ENV || 'Development' },
+              { label: 'Mock Data', value: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== 'false' ? 'Enabled' : 'Disabled', color: process.env.NEXT_PUBLIC_ENABLE_MOCK_DATA !== 'false' ? '#057642' : '#CC1016' },
+            ].map((info) => (
+              <div key={info.label} className="flex justify-between items-center py-1">
+                <span className="text-meta">{info.label}</span>
+                <span className="text-sm font-medium" style={{ color: info.color || 'var(--text-primary)' }}>{info.value}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card card-padding">
+          <h3 className="font-semibold text-sm mb-4" style={{ color: 'var(--text-secondary)' }}>Maintainer Mode</h3>
+          <p className="text-meta text-sm mb-4">
+            Enable advanced tools and insights for project maintainers, including cross-run analytics,
+            custom widgets, alert configuration, and resource fee analysis.
+          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>Maintainer Mode</span>
+              <p className="text-meta text-xs mt-0.5">
+                {mounted && isMaintainer ? 'Currently active' : 'Currently disabled'}
+              </p>
             </div>
-          ))}
+            {mounted && (
+              <button
+                onClick={toggleMaintainer}
+                className="relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#0A66C2] focus:ring-offset-2"
+                style={{
+                  background: isMaintainer ? '#0A66C2' : '#E0DFDC',
+                }}
+                role="switch"
+                aria-checked={isMaintainer}
+                aria-label="Toggle maintainer mode"
+              >
+                <span
+                  className="inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm"
+                  style={{ transform: isMaintainer ? 'translateX(24px)' : 'translateX(3px)' }}
+                />
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
