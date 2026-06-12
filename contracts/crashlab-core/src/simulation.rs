@@ -157,7 +157,23 @@ pub fn run_simulation_with_timeout<F>(
     simulator: F,
 ) -> CrashSignature
 where
-    F: FnOnce(&CaseSeed) -> CrashSignature + Send + 'static,
+    F: FnMut(&CaseSeed) -> CrashSignature + Send + 'static,
+{
+    run_simulation_with_timeout_seeded_runner(seed, config, simulator)
+}
+
+/// Like [`run_simulation_with_timeout`], but accepts a runner-like closure.
+///
+/// This indirection exists so integrators can bridge from the
+/// [`crate::runner::ContractRunner`] trait into the simulation module without
+/// changing existing call sites.
+pub fn run_simulation_with_timeout_seeded_runner<F>(
+    seed: &CaseSeed,
+    config: &SimulationTimeoutConfig,
+    mut runner: F,
+) -> CrashSignature
+where
+    F: FnMut(&CaseSeed) -> CrashSignature + Send + 'static,
 {
     if config.timeout_ms == 0 {
         return timeout_crash_signature(seed);
@@ -166,7 +182,7 @@ where
     let seed_clone = seed.clone();
     let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
-        let sig = simulator(&seed_clone);
+        let sig = runner(&seed_clone);
         let _ = tx.send(sig);
     });
 
@@ -176,8 +192,13 @@ where
     }
 }
 
+
+
+
+
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::classify;
     use std::thread;

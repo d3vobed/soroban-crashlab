@@ -80,11 +80,6 @@ export default function AccessibleKeyboardNavPage() {
     setError(null);
   };
 
-  const handleReset = () => {
-    setFormData(initialFormData);
-    setTabOrder([]);
-    setFocusedElement(null);
-  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black py-12 px-4 sm:px-6 lg:px-8">

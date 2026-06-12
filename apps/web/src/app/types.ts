@@ -13,6 +13,15 @@ export interface CrashDetail {
     failureCategory: string;
     /** Stable signature for de-duplicating failures */
     signature: string;
+    /**
+     * Stable numeric hash derived from category + payload bytes.
+     * Mirrors the Rust `CrashGroupRecord.signature_hash` (u64) produced by the
+     * crash de-dup index.  Two failures with equal `signatureHash` values are
+     * considered equivalent regardless of which seed produced them.
+     *
+     * Stored as a JavaScript `number` (safe for hashes up to 2^53 – 1).
+     */
+    signatureHash?: number;
     /** Payload associated with the failing input */
     payload: string;
     /** Command or action used to replay locally */

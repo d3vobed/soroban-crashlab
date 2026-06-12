@@ -33,12 +33,10 @@ import FailureClusterView from "./FailureClusterView";
 import MaintainerToggle from "./MaintainerToggle";
 import { useMaintainerMode } from "./useMaintainerMode";
 import AlertPresets from "./AlertPresets";
-import CreateReportingTemplatesPage60 from "./create-reporting-templates-page-60";
 import TimelineScrubber from "./TimelineScrubber";
 import ColumnCustomization, { ColumnId } from "./add-column-customization";
 import CampaignMilestoneTimeline from "./campaign-milestone-timeline-55";
 import VirtualizedRunTable from "./implement-virtualized-run-table-component";
-import ReportingTemplatesManager from "./add-reporting-templates-manager";
 import AutomatedRegressionDeployIntegration from "./integrate-automated-regression-deploy-integration";
 import IntegrationTestHarnessForUIFlows from "./integrate-integration-test-harness-for-ui-flows";
 import ReportGenerator from "./add-report-generator";
@@ -60,7 +58,6 @@ import AddResponsiveLayoutImprovements from "./add-responsive-layout-improvement
 import AddKeyboardNavigationHelp from "./add-keyboard-navigation-help";
 import AddRunAnnotations from "./add-run-annotations";
 import AddRunReplayUi from "./add-run-replay-ui";
-import NotificationCenter from "./add-notification-center-ui";
 import BulkActionsForRuns, { BulkAction } from "./add-bulk-actions-for-runs";
 import AddDownloadableRunArtifactBundle from "./add-downloadable-run-artifact-bundle";
 import CampaignConfigForm from "./CampaignConfigForm";
@@ -68,40 +65,6 @@ import ContributorSLATargets from "./ContributorSLATargets";
 import { CampaignConfig } from "./types";
 import { ResourceFeeInsightPanel } from "./implement-resource-fee-insight-panel-component";
 import AdvancedDashboardFilters, { DashboardFilters } from "./create-advanced-dashboard-filters-page";
-
-// Mock data for demonstration
-const MOCK_RUNS: FuzzingRun[] = Array.from({ length: 25 }, (_, i) => ({
-  id: `run-${1000 + i}`,
-  status: ["completed", "failed", "running", "cancelled"][i % 4] as RunStatus,
-  area: ["auth", "state", "budget", "xdr"][i % 4] as RunArea,
-  severity: ["low", "medium", "high", "critical"][i % 4] as RunSeverity,
-  duration: 120000 + Math.random() * 3600000, // 2m to 1h
-  seedCount: Math.floor(10000 + Math.random() * 90000),
-  cpuInstructions: Math.floor(400000 + Math.random() * 900000),
-  memoryBytes: Math.floor(1_500_000 + Math.random() * 8_000_000),
-  minResourceFee: Math.floor(500 + Math.random() * 5000),
-  crashDetail:
-    i % 4 === 1
-      ? {
-          failureCategory: i % 8 === 1 ? "Panic" : "InvariantViolation",
-          signature: `sig:${1000 + i}:contract::transfer:assert_balance_nonnegative`,
-          payload: JSON.stringify(
-            {
-              contract: "token",
-              method: "transfer",
-              args: {
-                from: "GABCD...1234",
-                to: "GXYZ...7890",
-                amount: 999999999,
-              },
-            },
-            null,
-            2,
-          ),
-          replayAction: `cargo run --bin crash-replay -- --run-id run-${1000 + i}`,
-        }
-      : null,
-})).reverse();
 
 const ITEMS_PER_PAGE = 10;
 const CPU_WARNING = 900_000;
@@ -179,6 +142,7 @@ function HomeContent() {
     hasCrash: null,
     searchTerm: '',
   });
+
 
   const handleToggleRunSelection = useCallback((runId: string) => {
     setSelectedRunIds(prev => {
@@ -267,6 +231,7 @@ function HomeContent() {
 
   const filteredRuns = useMemo(() => {
     return runs.filter((run) => {
+      // Apply legacy URL query param filters first (preserved for backward compatibility)
       if (statusFilter !== "all" && run.status !== statusFilter) {
         return false;
       }
@@ -276,9 +241,80 @@ function HomeContent() {
       if (expensiveOnly && !isExpensiveRun(run)) {
         return false;
       }
+
+      // Apply dashboardFilters: status (multi-select)
+      if (dashboardFilters.status.length > 0 && !dashboardFilters.status.includes(run.status)) {
+        return false;
+      }
+
+      // Apply dashboardFilters: area (multi-select)
+      if (dashboardFilters.area.length > 0 && !dashboardFilters.area.includes(run.area)) {
+        return false;
+      }
+
+      // Apply dashboardFilters: severity (multi-select)
+      if (dashboardFilters.severity.length > 0 && !dashboardFilters.severity.includes(run.severity)) {
+        return false;
+      }
+
+      // Apply dashboardFilters: dateRange (range filter on optional queuedAt field)
+      if (dashboardFilters.dateRange.start !== '' || dashboardFilters.dateRange.end !== '') {
+        if (!run.queuedAt) {
+          // Missing queuedAt fails date filter when date filter is active
+          return false;
+        }
+        const runDate = new Date(run.queuedAt);
+        if (dashboardFilters.dateRange.start !== '') {
+          const startDate = new Date(dashboardFilters.dateRange.start);
+          if (runDate < startDate) {
+            return false;
+          }
+        }
+        if (dashboardFilters.dateRange.end !== '') {
+          const endDate = new Date(dashboardFilters.dateRange.end);
+          if (runDate > endDate) {
+            return false;
+          }
+        }
+      }
+
+      // Apply dashboardFilters: durationRange (numeric range in milliseconds)
+      if (dashboardFilters.durationRange.min > 0 && run.duration < dashboardFilters.durationRange.min) {
+        return false;
+      }
+      if (dashboardFilters.durationRange.max > 0 && run.duration > dashboardFilters.durationRange.max) {
+        return false;
+      }
+
+      // Apply dashboardFilters: resourceFeeRange (numeric range in stroops)
+      if (dashboardFilters.resourceFeeRange.min > 0 && run.minResourceFee < dashboardFilters.resourceFeeRange.min) {
+        return false;
+      }
+      if (dashboardFilters.resourceFeeRange.max > 0 && run.minResourceFee > dashboardFilters.resourceFeeRange.max) {
+        return false;
+      }
+
+      // Apply dashboardFilters: hasCrash (tri-state boolean filter)
+      if (dashboardFilters.hasCrash !== null) {
+        const runHasCrash = run.crashDetail !== null;
+        if (runHasCrash !== dashboardFilters.hasCrash) {
+          return false;
+        }
+      }
+
+      // Apply dashboardFilters: searchTerm (case-insensitive substring on id and signature)
+      if (dashboardFilters.searchTerm !== '') {
+        const searchLower = dashboardFilters.searchTerm.toLowerCase();
+        const matchesId = run.id.toLowerCase().includes(searchLower);
+        const matchesSignature = run.crashDetail?.signature?.toLowerCase().includes(searchLower) ?? false;
+        if (!matchesId && !matchesSignature) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [runs, statusFilter, severityFilter, expensiveOnly]);
+  }, [runs, statusFilter, severityFilter, expensiveOnly, dashboardFilters]);
   const stableQueryString = useMemo(
     () => toStableQueryString(new URLSearchParams(searchParams.toString())),
     [searchParams],
@@ -324,26 +360,16 @@ function HomeContent() {
   // non-urgent update, which avoids the react-hooks/set-state-in-effect lint rule.
   useEffect(() => {
     let cancelled = false;
-    // Mark the loading reset as a low-priority transition so React batches it
-    // together with any concurrent work, avoiding a synchronous setState in effect.
     const ctrl = new AbortController();
     const resetAndFetch = async () => {
       setDataState("loading");
       setRuns([]);
       try {
-        // Simulate a network round-trip (800ms)
-        await new Promise<void>((resolve, reject) => {
-          const t = window.setTimeout(() => {
-            if (ctrl.signal.aborted) return;
-            // ~10% chance of simulated failure to exercise the error path.
-            if (Math.random() < 0.1)
-              reject(new Error("Simulated network error"));
-            else resolve();
-          }, 800);
-          ctrl.signal.addEventListener("abort", () => window.clearTimeout(t));
-        });
+        const res = await fetch('/api/runs', { signal: ctrl.signal });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
         if (!cancelled) {
-          setRuns(MOCK_RUNS);
+          setRuns(data.runs);
           setDataState("success");
         }
       } catch {
@@ -605,13 +631,8 @@ function HomeContent() {
         className="flex flex-col items-center justify-center py-20 px-8 max-w-5xl mx-auto w-full responsive-container"
       >
         <AddKeyboardNavigationHelp />
-        <div
-          id="main-content"
-          className="flex flex-col items-center justify-center py-20 px-8 max-w-5xl mx-auto w-full"
-        >
           {/* Role toggle */}
           <div className="w-full flex flex-wrap justify-end gap-3 mb-6">
-            <NotificationCenter />
             <button
               type="button"
               onClick={handleOpenOnboardingChecklist}
@@ -1155,14 +1176,6 @@ function HomeContent() {
           </div>
 
           <div className="mb-12 w-full">
-            <CreateReportingTemplatesPage60 />
-          </div>
-
-          <div className="mb-12 w-full">
-            <ReportingTemplatesManager />
-          </div>
-
-          <div className="mb-12 w-full">
             <AutomatedRegressionDeployIntegration />
           </div>
 
@@ -1333,7 +1346,6 @@ function HomeContent() {
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }

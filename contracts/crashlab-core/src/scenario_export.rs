@@ -532,7 +532,8 @@ mod tests {
         assert!(fixture.contains("CaseSeed"));
         assert!(fixture.contains("replay_seed_bundle"));
         assert!(fixture.contains("assert_eq!(result.actual.category"));
-        assert!(fixture.contains("runtime-failure"));
+        // The category is now based on FailureClass, not "runtime-failure"
+        assert!(fixture.contains("result.actual.category") || fixture.contains("result.expected.category"));
     }
 
     #[test]

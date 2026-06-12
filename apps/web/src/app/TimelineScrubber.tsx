@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, KeyboardEvent } from 'react';
+import React, { useState, useRef, KeyboardEvent } from 'react';
 import { FuzzingRun } from './types';
 
 interface TimelineScrubberProps {
@@ -19,18 +19,14 @@ export default function TimelineScrubber({
   const [index, setIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (runs.length > 0 && index >= runs.length) {
-      setIndex(runs.length - 1);
-    }
-  }, [runs.length, index]);
-
   const handleIndexChange = (newIndex: number) => {
     if (newIndex >= 0 && newIndex < runs.length) {
       setIndex(newIndex);
       onSelectRun(runs[newIndex].id);
     }
   };
+
+  const safeIndex = runs.length > 0 ? Math.min(index, runs.length - 1) : 0;
 
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'ArrowRight') {
@@ -89,8 +85,8 @@ export default function TimelineScrubber({
 
   if (runs.length === 0) return null;
 
-  const currentRun = runs[index] || runs[0];
-  const progress = (index / (runs.length - 1)) * 100;
+  const currentRun = runs[safeIndex] || runs[0];
+  const progress = runs.length > 1 ? (safeIndex / (runs.length - 1)) * 100 : 0;
 
   return (
     <div 
@@ -101,7 +97,7 @@ export default function TimelineScrubber({
       aria-label="Timeline Scrubber"
       aria-valuemin={0}
       aria-valuemax={runs.length - 1}
-      aria-valuenow={index}
+      aria-valuenow={safeIndex}
       aria-valuetext={`Run ${currentRun.id}, Status: ${currentRun.status}`}
     >
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -118,7 +114,7 @@ export default function TimelineScrubber({
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 bg-zinc-100 dark:bg-zinc-900 p-1 rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <button 
+              <button 
               onClick={() => handleIndexChange(index - 1)}
               disabled={index <= 0}
               className="p-2 rounded-lg hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-30 transition-all active:scale-90"

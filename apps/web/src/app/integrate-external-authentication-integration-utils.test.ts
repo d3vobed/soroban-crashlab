@@ -1,4 +1,11 @@
-import { formatVerified, validateAuthProvider, simulateAuthProbe, AuthProvider, AuthProviderType } from './integrate-external-authentication-integration-utils';
+import {
+  formatVerified,
+  validateAuthProvider,
+  simulateAuthProbe,
+  createExternalAuthAdapter,
+  AuthProvider,
+  AuthProviderType
+} from './integrate-external-authentication-integration-utils';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) {
@@ -77,13 +84,44 @@ function testSimulateAuthProbe(): void {
   console.log("✓ testSimulateAuthProbe passed");
 }
 
-function runAllTests(): void {
+async function testExternalAuthAdapter(): Promise<void> {
+  const verifiedAt = '2026-05-31T09:30:00.000Z';
+  const adapter = createExternalAuthAdapter({ now: () => verifiedAt });
+  const provider: AuthProvider = {
+    id: 'prov-stellar',
+    type: 'stellar-wallet',
+    label: 'Stellar Wallet',
+    description: 'Connect via wallet',
+    status: 'error',
+    errorMessage: 'Previous token failed',
+  };
+
+  const connected = await adapter.connectProvider(provider);
+  assert(connected.status === 'connected', 'Adapter should connect providers');
+  assert(connected.identity === 'GAQX...KBTZ', 'Adapter should assign provider identity');
+  assert(connected.lastVerified === verifiedAt, 'Adapter should stamp last verified time');
+  assert(connected.errorMessage === undefined, 'Adapter should clear stale provider errors');
+
+  const disconnected = await adapter.disconnectProvider(connected);
+  assert(disconnected.status === 'disconnected', 'Adapter should disconnect providers');
+  assert(disconnected.identity === undefined, 'Adapter should clear identity on disconnect');
+  assert(disconnected.lastVerified === undefined, 'Adapter should clear verification time on disconnect');
+
+  const probe = await adapter.probeAuthMode('RecordAllowNonroot');
+  assert(probe.mode === 'RecordAllowNonroot', 'Adapter should return the probed mode');
+  assert(probe.status === 'ok', 'Adapter should return auth mode probe status');
+
+  console.log("✓ testExternalAuthAdapter passed");
+}
+
+async function runAllTests(): Promise<void> {
   console.log("Running External Authentication Integration Utils Tests...\n");
   
   try {
     testFormatVerified();
     testValidateAuthProvider();
     testSimulateAuthProbe();
+    await testExternalAuthAdapter();
     console.log("\n✅ All tests passed!");
   } catch (error) {
     console.error("\n❌ Test failed:", error);
@@ -92,5 +130,5 @@ function runAllTests(): void {
 }
 
 if (typeof require !== 'undefined' && require.main === module) {
-  runAllTests();
+  void runAllTests();
 }

@@ -191,6 +191,32 @@ pub fn stable_failure_class_for_bundle(
     })
 }
 
+/// Build a `CrashSignature` from a seed using only the taxonomy mapping.
+///
+/// This central helper produces the stable `category` label, computes the
+/// deterministic `digest` and derives a `signature_hash` using the
+/// `signature_hash` helper. It is intended to be the single place that
+/// constructs `CrashSignature` values from raw seed bytes so callers (e.g.
+/// `to_bundle`) remain consistent with the taxonomy.
+pub fn crash_signature_from_seed(seed: &CaseSeed) -> CrashSignature {
+    let class = classify_failure(seed);
+    let category = class.as_str().to_string();
+
+    // Preserve the existing digest algorithm used by callers.
+    let digest = seed.payload.iter().fold(seed.id, |acc, b| {
+        acc.wrapping_mul(1099511628211).wrapping_add(*b as u64)
+    });
+
+    // Use the signature hashing helper so hashing logic is centralized.
+    let signature_hash = crate::signature_hash::hash_category_payload(category.as_str(), &seed.payload);
+
+    CrashSignature {
+        category,
+        digest,
+        signature_hash,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

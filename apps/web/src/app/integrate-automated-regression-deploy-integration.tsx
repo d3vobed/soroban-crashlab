@@ -42,6 +42,8 @@ export interface RegressionDeployScenario {
   result?: RegressionDeployIntegrationResult;
 }
 
+type RegressionSuiteStatus = 'idle' | 'running' | 'passed' | 'failed';
+
 const INITIAL_SCENARIOS: RegressionDeployScenario[] = [
   {
     id: 'reg-deploy-main-staging',
@@ -80,6 +82,42 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 function isBusyStage(stage: RegressionDeployStage): boolean {
   return (
     stage === 'deploying' || stage === 'running_regression' || stage === 'verifying_artifacts'
+  );
+}
+
+function toRegressionSuiteStatus(stage: RegressionDeployStage): RegressionSuiteStatus {
+  if (isBusyStage(stage)) return 'running';
+  if (stage === 'passed') return 'passed';
+  if (stage === 'failed') return 'failed';
+  return 'idle';
+}
+
+function RegressionStatusBadge({ status }: { status: RegressionSuiteStatus }) {
+  const labelByStatus: Record<RegressionSuiteStatus, string> = {
+    idle: 'Regression idle',
+    running: 'Regression running',
+    passed: 'Regression passed',
+    failed: 'Regression failed',
+  };
+
+  const classByStatus: Record<RegressionSuiteStatus, string> = {
+    idle: 'border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
+    running:
+      'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300',
+    passed:
+      'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300',
+    failed:
+      'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300',
+  };
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold leading-none ${classByStatus[status]}`}
+      aria-label={`Regression suite status: ${labelByStatus[status]}`}
+      title={labelByStatus[status]}
+    >
+      {labelByStatus[status]}
+    </span>
   );
 }
 
@@ -297,7 +335,12 @@ export default function AutomatedRegressionDeployIntegration() {
               <div className="flex items-start gap-4 px-5 py-4 flex-1 min-w-0">
                 <StatusGlyph stage={s.stage} />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">{s.label}</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">
+                      {s.label}
+                    </h3>
+                    <RegressionStatusBadge status={toRegressionSuiteStatus(s.stage)} />
+                  </div>
                   <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">{s.description}</p>
                   <dl className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-mono text-zinc-500 dark:text-zinc-400">
                     <div>

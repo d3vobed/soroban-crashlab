@@ -3,14 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import {
-  ALERTING_SETTINGS_STORAGE_KEY,
   ALERTING_TABS,
   buildAlertingSettingsSummary,
   createDefaultAlertingSettingsSnapshot,
   filterAlertRulesByCategory,
   formatRelativeTime,
   getNextAlertingTab,
-  readAlertingSettingsSnapshot,
   serializeAlertingSettingsSnapshot,
   toggleAlertRule,
   toggleNotificationChannel,
@@ -20,6 +18,8 @@ import {
   type AlertingSettingsSnapshot,
   type AlertingTabId,
 } from './alerting-settings-page-utils';
+
+const ALERTING_API_URL = '/api/settings/alerting';
 
 interface AlertingSettingsPageProps {
   className?: string;
@@ -145,18 +145,10 @@ export default function AlertingSettingsPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const loadTimerRef = useRef<number | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const tabButtonRefs = useRef<Partial<Record<AlertingTabId, HTMLButtonElement | null>>>(
     {},
   );
-
-  const clearLoadTimer = useCallback(() => {
-    if (loadTimerRef.current !== null) {
-      window.clearTimeout(loadTimerRef.current);
-      loadTimerRef.current = null;
-    }
-  }, []);
 
   const clearSaveTimer = useCallback(() => {
     if (saveTimerRef.current !== null) {
@@ -173,50 +165,27 @@ export default function AlertingSettingsPage({
   }, []);
 
   const scheduleLoad = useCallback(() => {
-    clearLoadTimer();
     setLoadState('loading');
     setErrorMessage(null);
     setStatusMessage(null);
 
-    loadTimerRef.current = window.setTimeout(() => {
-      try {
-        const storedValue = window.localStorage.getItem(
-          ALERTING_SETTINGS_STORAGE_KEY,
-        );
-        const result = readAlertingSettingsSnapshot(storedValue);
-
-        if (result.status === 'error' || !result.snapshot) {
-          setSettings(null);
-          setErrorMessage(
-            result.error ?? 'Unable to load alerting settings.',
-          );
-          setLoadState('error');
-          return;
-        }
-
-        if (storedValue === null) {
-          window.localStorage.setItem(
-            ALERTING_SETTINGS_STORAGE_KEY,
-            serializeAlertingSettingsSnapshot(result.snapshot),
-          );
-        }
-
-        applySnapshot(result.snapshot);
-      } catch {
+    fetch(ALERTING_API_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<AlertingSettingsSnapshot>;
+      })
+      .then((snapshot) => applySnapshot(snapshot))
+      .catch(() => {
         setSettings(null);
-        setErrorMessage('Unable to access browser storage for alerting settings.');
+        setErrorMessage('Unable to load alerting settings.');
         setLoadState('error');
-      }
-    }, 250);
-  }, [applySnapshot, clearLoadTimer]);
+      });
+  }, [applySnapshot]);
 
   useEffect(() => {
     scheduleLoad();
-    return () => {
-      clearLoadTimer();
-      clearSaveTimer();
-    };
-  }, [clearLoadTimer, clearSaveTimer, scheduleLoad]);
+    return clearSaveTimer;
+  }, [scheduleLoad, clearSaveTimer]);
 
   useEffect(() => {
     if (statusMessage === null) return;
@@ -300,39 +269,46 @@ export default function AlertingSettingsPage({
     setErrorMessage(null);
     setStatusMessage(null);
 
-    try {
-      const nextSnapshot: AlertingSettingsSnapshot = {
-        ...settings,
-        lastUpdated: new Date().toISOString(),
-      };
-
-      window.localStorage.setItem(
-        ALERTING_SETTINGS_STORAGE_KEY,
-        serializeAlertingSettingsSnapshot(nextSnapshot),
-      );
-      applySnapshot(nextSnapshot);
-      setStatusMessage('Alerting settings saved to browser storage.');
-    } catch {
-      setErrorMessage('Unable to save alerting settings in this browser.');
-    } finally {
-      setIsSaving(false);
-    }
+    fetch(ALERTING_API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: serializeAlertingSettingsSnapshot(settings),
+    })
+      .then((res) => {
+        if (!res.ok) return res.json().then((e: { error?: string }) => { throw new Error(e.error ?? `HTTP ${res.status}`); });
+        return res.json() as Promise<AlertingSettingsSnapshot>;
+      })
+      .then((saved) => {
+        applySnapshot(saved);
+        setStatusMessage('Alerting settings saved.');
+      })
+      .catch((err: Error) => {
+        setErrorMessage(err.message ?? 'Unable to save alerting settings.');
+      })
+      .finally(() => setIsSaving(false));
   }, [applySnapshot, settings]);
 
   const handleReset = useCallback(() => {
-    try {
-      const defaults = createDefaultAlertingSettingsSnapshot();
-      window.localStorage.setItem(
-        ALERTING_SETTINGS_STORAGE_KEY,
-        serializeAlertingSettingsSnapshot(defaults),
-      );
-      applySnapshot(defaults);
-      setActiveTab('rules');
-      setSelectedCategory('all');
-      setStatusMessage('Alerting settings reset to defaults.');
-    } catch {
-      setErrorMessage('Unable to reset alerting settings in this browser.');
-    }
+    const defaults = createDefaultAlertingSettingsSnapshot();
+
+    fetch(ALERTING_API_URL, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: serializeAlertingSettingsSnapshot(defaults),
+    })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json() as Promise<AlertingSettingsSnapshot>;
+      })
+      .then((saved) => {
+        applySnapshot(saved);
+        setActiveTab('rules');
+        setSelectedCategory('all');
+        setStatusMessage('Alerting settings reset to defaults.');
+      })
+      .catch(() => {
+        setErrorMessage('Unable to reset alerting settings.');
+      });
   }, [applySnapshot]);
 
   if (loadState === 'loading') {

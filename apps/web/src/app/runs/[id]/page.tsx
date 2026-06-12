@@ -1,53 +1,39 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import type { LedgerStateChange } from '../../types';
-import { buildMockRuns } from '../../mockRuns';
+import type { FuzzingRun, LedgerStateChange } from '../../types';
 import RunIssueLinkPage53 from '../../add-run-issue-link-page-53';
-import RunStatusTimeline from '../../RunStatusTimeline';
+import RunTimeline from './RunTimeline';
 import DownloadArtifactsButton from './DownloadArtifactsButton';
+import StateChangeDiffView from '../../add-state-change-diff-view';
+
+interface RunDetail extends FuzzingRun {
+    ledgerChanges?: LedgerStateChange[];
+}
 
 interface RunDetailPageProps {
     params: Promise<{ id: string }>;
 }
 
-const ledgerChanges: LedgerStateChange[] = [
-    {
-        id: 'entry-1',
-        entryType: 'ContractData',
-        changeType: 'created',
-        after: '{"key":"allowance:alice:bob","value":"1000"}',
-    },
-    {
-        id: 'entry-2',
-        entryType: 'Account',
-        changeType: 'updated',
-        before: '{"balance":"10000000","seq":"184"}',
-        after: '{"balance":"9800000","seq":"185"}',
-    },
-    {
-        id: 'entry-3',
-        entryType: 'TrustLine',
-        changeType: 'deleted',
-        before: '{"asset":"USDC","limit":"500","balance":"0"}',
-    },
-];
-
-const changeBadge = {
-    created: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 border-green-200 dark:border-green-900/60',
-    updated: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-900/60',
-    deleted: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-900/60',
-};
-
 const formatBytes = (bytes: number): string => `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 const formatDate = (value?: string): string => (value ? new Date(value).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }) : 'Pending');
 
+async function fetchRun(id: string): Promise<RunDetail | null> {
+    const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const res = await fetch(`${base}/api/runs/${encodeURIComponent(id)}`, { cache: 'no-store' });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Failed to fetch run ${id}`);
+    return res.json() as Promise<RunDetail>;
+}
+
 export default async function RunDetailPage({ params }: RunDetailPageProps) {
     const { id } = await params;
-    const run = buildMockRuns().find((entry) => entry.id === id);
+    const run = await fetchRun(id);
 
     if (!run) {
         notFound();
     }
+
+    const ledgerChanges = run.ledgerChanges ?? [];
 
     const cpuWarn = run.cpuInstructions >= 900_000;
     const memoryWarn = run.memoryBytes >= 7_000_000;
@@ -75,7 +61,7 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
                 </div>
 
                 <div className="mb-8">
-                    <RunStatusTimeline
+                    <RunTimeline
                         status={run.status}
                         queuedAt={formatDate(run.queuedAt)}
                         startedAt={formatDate(run.startedAt)}
@@ -121,39 +107,7 @@ export default async function RunDetailPage({ params }: RunDetailPageProps) {
                     </section>
                 )}
 
-                <section>
-                    <h2 className="text-lg font-semibold mb-3">Ledger State Change Diff</h2>
-                    <div className="space-y-3">
-                        {ledgerChanges.map((change) => (
-                            <article key={change.id} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-                                <div className="flex flex-wrap items-center gap-2 mb-3">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${changeBadge[change.changeType]}`}>
-                                        {change.changeType.toUpperCase()}
-                                    </span>
-                                    <span className="text-xs font-semibold text-zinc-600 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-0.5">
-                                        {change.entryType}
-                                    </span>
-                                    <span className="text-xs text-zinc-500 dark:text-zinc-400 font-mono">{change.id}</span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">Before</div>
-                                        <pre className="text-xs rounded-lg bg-zinc-100 dark:bg-zinc-950 p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                                            {change.before ?? 'N/A (created)'}
-                                        </pre>
-                                    </div>
-                                    <div>
-                                        <div className="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 mb-1">After</div>
-                                        <pre className="text-xs rounded-lg bg-zinc-100 dark:bg-zinc-950 p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                                            {change.after ?? 'N/A (deleted)'}
-                                        </pre>
-                                    </div>
-                                </div>
-                            </article>
-                        ))}
-                    </div>
-                </section>
+                <StateChangeDiffView changes={ledgerChanges} title="Ledger State Change Diff" />
             </div>
         </div>
     );

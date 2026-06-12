@@ -1,47 +1,107 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { WebhookManager, WebhookConfig as WebhookManagerConfig, RunEventType } from './webhook-manager';
+import { FetchWebhookDeliveryAdapter } from '../lib/webhook-delivery-worker';
 
 type WebhookConfig = {
   id: string;
   url: string;
-  events: string[];
+  events: RunEventType[];
   active: boolean;
 };
 
-const AVAILABLE_EVENTS = [
-  'run_started',
-  'run_completed',
-  'run_failed',
-  'run_cancelled',
-  'invariant_violated'
+const AVAILABLE_EVENTS: RunEventType[] = [
+  'run.started',
+  'run.completed',
+  'run.failed',
+  'run.cancelled',
+  'crash.detected'
 ];
 
+// Create a singleton instance of WebhookManager with real HTTP client
+const webhookManager = new WebhookManager();
+
 export default function IntegrateWebhookManagerForRunEvents() {
-  const [webhooks, setWebhooks] = useState<WebhookConfig[]>([
-    { id: '1', url: 'https://api.example.com/webhooks/soroban', events: ['run_failed', 'invariant_violated'], active: true }
-  ]);
+  const [webhooks, setWebhooks] = useState<WebhookConfig[]>([]);
   const [newUrl, setNewUrl] = useState('');
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(['run_failed']);
+  const [selectedEvents, setSelectedEvents] = useState<RunEventType[]>(['run.failed']);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const addWebhook = () => {
-    if (!newUrl) return;
-    const newWebhook: WebhookConfig = {
-      id: Math.random().toString(36).substr(2, 9),
-      url: newUrl,
-      events: selectedEvents,
-      active: true
-    };
-    setWebhooks([...webhooks, newWebhook]);
-    setNewUrl('');
-    setSelectedEvents(['run_failed']);
+  // Load webhooks from manager on mount
+  useEffect(() => {
+    loadWebhooks();
+  }, []);
+
+  const loadWebhooks = useCallback(() => {
+    const registeredWebhooks = webhookManager.getWebhooks();
+    setWebhooks(registeredWebhooks.map(wh => ({
+      id: wh.id,
+      url: wh.url,
+      events: wh.events,
+      active: wh.active
+    })));
+  }, []);
+
+  const addWebhook = async () => {
+    if (!newUrl) {
+      setError('Please enter a webhook URL');
+      return;
+    }
+
+    if (selectedEvents.length === 0) {
+      setError('Please select at least one event type');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const newWebhook: WebhookManagerConfig = {
+        id: `wh_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        url: newUrl,
+        events: selectedEvents,
+        active: true,
+        maxRetries: 3,
+        timeoutMs: 5000
+      };
+
+      // Register with the webhook manager
+      webhookManager.registerWebhook(newWebhook);
+      
+      // Reload webhooks from manager
+      loadWebhooks();
+      
+      // Reset form
+      setNewUrl('');
+      setSelectedEvents(['run.failed']);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add webhook');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const removeWebhook = (id: string) => {
-    setWebhooks(webhooks.filter(w => w.id !== id));
+  const removeWebhook = async (id: string) => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const removed = webhookManager.unregisterWebhook(id);
+      if (!removed) {
+        setError('Webhook not found');
+      }
+      loadWebhooks();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove webhook');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const toggleEvent = (event: string) => {
+  const toggleEvent = (event: RunEventType) => {
     setSelectedEvents(prev => 
       prev.includes(event) 
         ? prev.filter(e => e !== event) 
@@ -51,6 +111,12 @@ export default function IntegrateWebhookManagerForRunEvents() {
 
   return (
     <section className="w-full rounded-[2.5rem] border border-black/[.08] bg-zinc-50 p-8 dark:border-white/[.145] dark:bg-zinc-950/50">
+      {error && (
+        <div className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-2xl">
+          <p className="text-sm text-rose-600 dark:text-rose-400 font-medium">{error}</p>
+        </div>
+      )}
+      
       <div className="flex flex-col xl:flex-row gap-12">
         <div className="xl:w-1/3">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.28em] text-purple-600 dark:text-purple-400">
@@ -70,7 +136,8 @@ export default function IntegrateWebhookManagerForRunEvents() {
                 placeholder="https://notify.mysite.com/hook"
                 value={newUrl}
                 onChange={(e) => setNewUrl(e.target.value)}
-                className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 focus:ring-2 focus:ring-purple-500 outline-none transition"
+                disabled={isLoading}
+                className="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 focus:ring-2 focus:ring-purple-500 outline-none transition disabled:opacity-50"
               />
             </div>
 
@@ -81,13 +148,14 @@ export default function IntegrateWebhookManagerForRunEvents() {
                   <button
                     key={event}
                     onClick={() => toggleEvent(event)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+                    disabled={isLoading}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold transition disabled:opacity-50 ${
                       selectedEvents.includes(event)
                         ? 'bg-purple-600 text-white'
                         : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400 hover:bg-zinc-200'
                     }`}
                   >
-                    {event.replace('_', ' ')}
+                    {event.replace(/\./g, ' ')}
                   </button>
                 ))}
               </div>
@@ -95,9 +163,10 @@ export default function IntegrateWebhookManagerForRunEvents() {
 
             <button 
               onClick={addWebhook}
-              className="w-full py-4 rounded-2xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-lg shadow-purple-500/20 active:scale-95 transition"
+              disabled={isLoading}
+              className="w-full py-4 rounded-2xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-lg shadow-purple-500/20 active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Connect Webhook
+              {isLoading ? 'Processing...' : 'Connect Webhook'}
             </button>
           </div>
         </div>

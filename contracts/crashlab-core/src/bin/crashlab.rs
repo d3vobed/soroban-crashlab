@@ -6,8 +6,9 @@
 //! to run all regression fixtures from a file or directory.
 
 use crashlab_core::{
-    RunId, cancel_marker_path, default_state_dir, replay_mismatch_message, replay_seed_bundle_path,
-    replay_success_message, request_cancel_run, run_regression_suite_from_json,
+    RunId, cancel_marker_path, cancel_requested, default_state_dir, replay_mismatch_message,
+    replay_seed_bundle_path, replay_success_message, request_cancel_run,
+    run_regression_suite_from_json,
 };
 use std::fs;
 use std::path::Path;
@@ -74,6 +75,13 @@ fn main() {
             }
             run_regression_suite_command(path);
         }
+        (Some("runs"), Some("list"), None, None) => {
+            if args.next().is_some() {
+                print_usage();
+                std::process::exit(1);
+            }
+            list_runs();
+        }
         _ => {
             print_usage();
             std::process::exit(1);
@@ -84,9 +92,44 @@ fn main() {
 fn print_usage() {
     eprintln!(
         "usage: crashlab run cancel <id>\n\
+                crashlab runs list\n\
                 crashlab replay seed <bundle-json-path>\n\
                 crashlab regression-suite <suite-json-path-or-directory>"
     );
+}
+
+fn list_runs() {
+    let base = default_state_dir();
+    let runs_dir = base.join("runs");
+
+    let entries = match std::fs::read_dir(&runs_dir) {
+        Ok(e) => e,
+        Err(_) => {
+            println!("no runs found");
+            return;
+        }
+    };
+
+    let mut ids: Vec<u64> = entries
+        .filter_map(|e| e.ok())
+        .filter_map(|e| e.file_name().to_string_lossy().parse::<u64>().ok())
+        .collect();
+
+    if ids.is_empty() {
+        println!("no runs found");
+        return;
+    }
+
+    ids.sort_unstable();
+    for id in ids {
+        let run_id = RunId(id);
+        let status = if cancel_requested(run_id, &base) {
+            "cancelled"
+        } else {
+            "active"
+        };
+        println!("{id}\t{status}");
+    }
 }
 
 fn run_regression_suite_command(path: &str) {

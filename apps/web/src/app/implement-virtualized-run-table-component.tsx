@@ -20,6 +20,12 @@ interface VirtualizedRunTableProps {
     onViewReport: (run: FuzzingRun) => void;
     /** List of column IDs to show. */
     visibleColumns?: string[];
+    /** Set of selected run IDs for bulk actions */
+    selectedRunIds?: Set<string>;
+    /** Called to toggle selection of a run */
+    onToggleRunSelection?: (runId: string) => void;
+    /** Called to toggle selection of all runs */
+    onToggleAllRunsSelection?: (runIds: string[]) => void;
 }
 
 /**
@@ -70,12 +76,16 @@ const VirtualRow = ({
     onSelectRun,
     onViewReport,
     visibleColumns,
+    selectedRunIds = new Set(),
+    onToggleRunSelection,
 }: {
     run: FuzzingRun;
     top: number;
     onSelectRun: (id: string) => void;
     onViewReport: (run: FuzzingRun) => void;
     visibleColumns: string[];
+    selectedRunIds?: Set<string>;
+    onToggleRunSelection?: (id: string) => void;
 }) => {
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent<HTMLTableRowElement>) => {
@@ -91,11 +101,27 @@ const VirtualRow = ({
         <tr
             style={{ position: 'absolute', top, left: 0, right: 0, height: ROW_HEIGHT, display: 'flex', alignItems: 'center' }}
             tabIndex={0}
-            className="group hover:bg-zinc-50 dark:hover:bg-zinc-900/30 transition-colors cursor-pointer border-b border-zinc-100 dark:border-zinc-800 w-full"
+            className={`group transition-colors cursor-pointer border-b border-zinc-100 dark:border-zinc-800 w-full ${
+                selectedRunIds.has(run.id)
+                    ? "bg-blue-50/80 dark:bg-blue-900/20"
+                    : "hover:bg-zinc-50 dark:hover:bg-zinc-900/30"
+            }`}
             onClick={() => onSelectRun(run.id)}
             onKeyDown={handleKeyDown}
             aria-label={`Fuzzing run ${run.id}, status ${run.status}`}
         >
+            {onToggleRunSelection && (
+                <td className="px-6 w-12 shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-center">
+                        <input
+                            type="checkbox"
+                            checked={selectedRunIds.has(run.id)}
+                            onChange={() => onToggleRunSelection(run.id)}
+                            className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                        />
+                    </div>
+                </td>
+            )}
             {visibleColumns.includes('id') && (
                 <td className="px-6 flex-1 min-w-0">
                     <button
@@ -165,6 +191,9 @@ export default function VirtualizedRunTable({
     onSelectRun,
     onViewReport,
     visibleColumns = ['id', 'status', 'duration', 'seedCount', 'report'],
+    selectedRunIds = new Set(),
+    onToggleRunSelection,
+    onToggleAllRunsSelection,
 }: VirtualizedRunTableProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [scrollTop, setScrollTop] = useState(0);
@@ -225,6 +254,27 @@ export default function VirtualizedRunTable({
                 <table className="w-full text-left border-collapse" role="presentation">
                     <thead>
                         <tr className="bg-zinc-50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800 flex">
+                            {onToggleRunSelection && (
+                                <th className="px-6 py-4 text-[10px] font-bold text-zinc-400 w-12">
+                                    <div className="flex items-center justify-center">
+                                        <input
+                                            type="checkbox"
+                                            checked={runs.length > 0 && selectedRunIds.size === runs.length}
+                                            ref={(input) => {
+                                                if (input) {
+                                                    input.indeterminate = selectedRunIds.size > 0 && selectedRunIds.size < runs.length;
+                                                }
+                                            }}
+                                            onChange={() => {
+                                                if (onToggleAllRunsSelection) {
+                                                    onToggleAllRunsSelection(runs.map(r => r.id));
+                                                }
+                                            }}
+                                            className="w-4 h-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                    </div>
+                                </th>
+                            )}
                             {visibleColumns.includes('id') && (
                                 <th scope="col" className="px-6 py-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100 flex-1 min-w-0">
                                     Run ID
@@ -276,6 +326,8 @@ export default function VirtualizedRunTable({
                                     onSelectRun={onSelectRun}
                                     onViewReport={onViewReport}
                                     visibleColumns={visibleColumns}
+                                    selectedRunIds={selectedRunIds}
+                                    onToggleRunSelection={onToggleRunSelection}
                                 />
                             ))}
                         </tbody>

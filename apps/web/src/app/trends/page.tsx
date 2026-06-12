@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { RunArea, RunSeverity, FuzzingRun } from '../types';
+import { FuzzingRun, RunArea, RunSeverity } from '../types';
 import { FilterBar } from './FilterBar';
 import { CrashTrendChart } from './CrashTrendChart';
 import {
@@ -18,12 +18,18 @@ import {
  *
  * Visualizes crash signature frequency over time with interactive
  * filtering by area, severity, and specific signatures.
- *
- * TODO: Integrate with real API to fetch FuzzingRun data instead of using mock data.
  */
 export default function CrashTrendPage() {
-  // TODO: Replace with real data source (API call, context, etc.)
-  const runs = useMockFuzzingRuns();
+  const [runs, setRuns] = useState<FuzzingRun[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/runs')
+      .then((res) => res.json())
+      .then((data) => { if (!cancelled) setRuns(data.runs); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   // Filter state
   const [selectedAreas, setSelectedAreas] = useState<RunArea[]>([]);
@@ -207,55 +213,3 @@ function calculateTotalCrashes(chartData: Record<string, string | number>[]): nu
   return total;
 }
 
-/**
- * Generate mock FuzzingRun data for demo/testing.
- * TODO: Replace with real API call after integration.
- */
-function useMockFuzzingRuns(): FuzzingRun[] {
-  // In a real implementation, this would fetch from an API or receive via props.
-  // For now, we generate realistic mock data for testing the visualization.
-
-  const areas: RunArea[] = ['auth', 'state', 'budget', 'xdr'];
-  const severities: RunSeverity[] = ['low', 'medium', 'high', 'critical'];
-  const baseDate = new Date('2026-03-20');
-
-  const runs: FuzzingRun[] = [];
-  let runId = 1;
-
-  // Generate 50 mock crashes across the past 10 days
-  for (let dayOffset = 0; dayOffset < 10; dayOffset++) {
-    const date = new Date(baseDate);
-    date.setDate(date.getDate() - dayOffset);
-
-    const crashCount = Math.floor(Math.random() * 8) + 1;
-
-    for (let i = 0; i < crashCount; i++) {
-      const area = areas[Math.floor(Math.random() * areas.length)];
-      const severity = severities[Math.floor(Math.random() * severities.length)];
-
-      // Generate stable signature hashes (in real data, these are FNV-1a hashes)
-      const signature = `0x${(Math.random() * 0xffffffff | 0).toString(16).padStart(8, '0')}`;
-
-      runs.push({
-        id: `run-${runId++}`,
-        status: 'failed',
-        area,
-        severity,
-        duration: Math.floor(Math.random() * 60000) + 1000,
-        seedCount: Math.floor(Math.random() * 1000) + 10,
-        cpuInstructions: Math.floor(Math.random() * 1000000),
-        memoryBytes: Math.floor(Math.random() * 10000000),
-        minResourceFee: Math.floor(Math.random() * 100000),
-        finishedAt: date.toISOString(),
-        crashDetail: {
-          failureCategory: area.toUpperCase(),
-          signature,
-          payload: `{"type":"${area}","test":true}`,
-          replayAction: `crashlab replay --signature ${signature}`,
-        },
-      });
-    }
-  }
-
-  return runs;
-}

@@ -19,6 +19,22 @@ export interface AuthModeProbeResult {
   notes?: string;
 }
 
+export interface ExternalAuthAdapter {
+  connectProvider(provider: AuthProvider): Promise<AuthProvider>;
+  disconnectProvider(provider: AuthProvider): Promise<AuthProvider>;
+  probeAuthMode(mode: SorobanAuthMode): Promise<AuthModeProbeResult>;
+}
+
+type ExternalAuthAdapterOptions = {
+  now?: () => string;
+};
+
+const PROVIDER_IDENTITIES: Record<AuthProviderType, string> = {
+  'stellar-wallet': 'GAQX...KBTZ',
+  oauth: 'contributor@example.com',
+  'api-key': 'ci-fuzzer-key',
+};
+
 export function formatVerified(iso?: string): string {
   if (!iso) return '';
   try {
@@ -48,6 +64,41 @@ export function validateAuthProvider(provider: AuthProvider): { isValid: boolean
   }
   
   return { isValid: errors.length === 0, errors };
+}
+
+export function createExternalAuthAdapter(
+  options: ExternalAuthAdapterOptions = {},
+): ExternalAuthAdapter {
+  const now = options.now ?? (() => new Date().toISOString());
+
+  return {
+    async connectProvider(provider) {
+      return {
+        ...provider,
+        status: 'connected',
+        identity: provider.identity ?? PROVIDER_IDENTITIES[provider.type],
+        errorMessage: undefined,
+        lastVerified: now(),
+      };
+    },
+
+    async disconnectProvider(provider) {
+      return {
+        ...provider,
+        status: 'disconnected',
+        identity: undefined,
+        errorMessage: undefined,
+        lastVerified: undefined,
+      };
+    },
+
+    async probeAuthMode(mode) {
+      return {
+        mode,
+        ...simulateAuthProbe(mode),
+      };
+    },
+  };
 }
 
 export function simulateAuthProbe(mode: SorobanAuthMode): Omit<AuthModeProbeResult, 'mode'> {

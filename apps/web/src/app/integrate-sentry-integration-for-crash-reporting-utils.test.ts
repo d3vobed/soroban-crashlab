@@ -8,6 +8,7 @@ import {
   SentryConfig,
   CrashReport,
 } from './integrate-sentry-integration-for-crash-reporting-utils';
+import { createSentryAdapter } from '../lib/integrations/sentry-adapter';
 
 function assert(condition: boolean, message: string): void {
   if (!condition) throw new Error(`Assertion failed: ${message}`);
@@ -164,6 +165,29 @@ function testBuildSentryEventUrl(): void {
   console.log('✓ testBuildSentryEventUrl passed');
 }
 
+// ── Sentry Adapter Tests ───────────────────────────────────────────────────────
+
+function testCreateSentryAdapter(): void {
+  const adapter = createSentryAdapter();
+  assert(typeof adapter.loadConfig === 'function', 'adapter should have loadConfig method');
+  assert(typeof adapter.saveConfig === 'function', 'adapter should have saveConfig method');
+  assert(typeof adapter.testConnection === 'function', 'adapter should have testConnection method');
+  assert(typeof adapter.fetchRecentReports === 'function', 'adapter should have fetchRecentReports method');
+  console.log('✓ testCreateSentryAdapter passed');
+}
+
+function testCreateSentryAdapterWithOptions(): void {
+  const mockFetch = async () => new Response(JSON.stringify({}), { status: 200 });
+  const adapter = createSentryAdapter({
+    apiBase: '/custom/api/sentry',
+    fetchImpl: mockFetch,
+    timeoutMs: 5000,
+  });
+  assert(typeof adapter.loadConfig === 'function', 'adapter with options should have loadConfig method');
+  assert(typeof adapter.saveConfig === 'function', 'adapter with options should have saveConfig method');
+  console.log('✓ testCreateSentryAdapterWithOptions passed');
+}
+
 // ── Runner ────────────────────────────────────────────────────────────────────
 
 function runAllTests(): void {
@@ -183,6 +207,8 @@ function runAllTests(): void {
     testSummariseReports_empty();
     testFormatTimestamp();
     testBuildSentryEventUrl();
+    testCreateSentryAdapter();
+    testCreateSentryAdapterWithOptions();
     console.log('\n✅ All Sentry Integration for Crash Reporting utils tests passed!');
   } catch (error) {
     console.error('\n❌ Test failed:', error);

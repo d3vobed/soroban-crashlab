@@ -9,8 +9,17 @@ pub mod regression_group;
 pub mod fixture;
 pub mod fixture_classifier;
 pub mod suite_runner;
+pub mod runner;
+
+pub use runner::{ContractRunner, RunnerError, RunnerCreationError, create_runner, MockRunner};
+
+#[cfg(feature = "host-runner")]
+pub mod host_runner;
+
+pub mod rpc_runner;
 
 pub use auth_matrix::{
+
     AuthMode, MatrixReport, ModeResult, collect_mismatched, format_mismatch_summary, run_matrix,
     run_matrix_for_seeds,
 };
@@ -27,10 +36,16 @@ pub use signature_hash::{SignatureHasher, hash_category_payload};
 pub use taxonomy::{
     FailureClass, classify_failure, group_by_class, stable_failure_class_for_bundle,
 };
+pub use taxonomy::crash_signature_from_seed;
 pub use regression_group::RegressionGroup;
 pub use fixture::RegressionFixture;
 pub use fixture_classifier::{classify_fixture, classify_and_wrap_fixture};
 pub use suite_runner::{GroupSummary, GroupStats, SuiteRunnerConfig};
+
+#[cfg(feature = "host-runner")]
+pub use host_runner::HostContractRunner;
+
+pub use rpc_runner::{RpcContractRunner, RpcConfigError};
 
 pub mod seed_validator;
 pub use seed_validator::{SeedSchema, SeedValidationError, Validate};
@@ -192,9 +207,10 @@ pub use rpc_envelope::{RpcEnvelopeCapture, RpcRequestEnvelope, RpcResponseEnvelo
 
 pub mod stellar_address;
 
-// TODO: threat_model_tests.rs has outdated API calls and needs refactoring
-// #[cfg(test)]
-// mod threat_model_tests;
+// Re-enable threat model tests (compile-only pass). Obsolete cases can be
+// ignored or updated as follow-ups (see ROADMAP-004).
+#[cfg(test)]
+mod threat_model_tests;
 pub use stellar_address::{
     AddressMutatorConfig, AddressType, StellarAddressMutator, generate_address_vectors,
 };
@@ -234,15 +250,9 @@ pub struct CrashSignature {
 /// The hash is deterministic and independent of any seed ID, so equivalent
 /// failures always produce the same value.
 pub fn compute_signature_hash(category: &str, payload: &[u8]) -> u64 {
-    const FNV_OFFSET: u64 = 14695981039346656037;
-    const FNV_PRIME: u64 = 1099511628211;
-
-    let mut hash = FNV_OFFSET;
-    for byte in category.as_bytes().iter().chain(payload.iter()) {
-        hash ^= *byte as u64;
-        hash = hash.wrapping_mul(FNV_PRIME);
-    }
-    hash
+    // Delegate to the centralized signature hashing implementation so the
+    // hashing format remains stable and consistent across callers.
+    signature_hash::hash_category_payload(category, payload)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -278,27 +288,10 @@ pub fn mutate_seed(seed: &CaseSeed) -> CaseSeed {
 }
 
 pub fn classify(seed: &CaseSeed) -> CrashSignature {
-    let digest = seed.payload.iter().fold(seed.id, |acc, b| {
-        acc.wrapping_mul(1099511628211).wrapping_add(*b as u64)
-    });
-
-    let category = if seed.payload.is_empty() {
-        "empty-input"
-    } else if seed.payload.len() > 64 {
-        "oversized-input"
-    } else if is_invalid_enum_tag_payload(&seed.payload) {
-        "invalid-enum-tag"
-    } else {
-        "runtime-failure"
-    };
-
-    let signature_hash = compute_signature_hash(category, &seed.payload);
-
-    CrashSignature {
-        category: category.to_string(),
-        digest,
-        signature_hash,
-    }
+    // Delegate signature construction to the taxonomy helper which produces
+    // category labels consistent with `classify_failure` and a centralized
+    // signature hashing strategy.
+    taxonomy::crash_signature_from_seed(seed)
 }
 
 pub fn to_bundle(seed: CaseSeed) -> CaseBundle {

@@ -15,10 +15,26 @@ export default function CampaignConfigForm({ onSubmit, onCancel }: CampaignConfi
         parallelism: 4,
         timeoutSeconds: 3600,
     });
+    const [submitting, setSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(config);
+        setSubmitting(true);
+        setError(null);
+        try {
+            const res = await fetch('/api/campaigns', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config),
+            });
+            if (!res.ok) throw new Error(`API error: ${res.status}`);
+            onSubmit(config);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to launch campaign');
+        } finally {
+            setSubmitting(false);
+        }
     };
 
     return (
@@ -95,19 +111,24 @@ export default function CampaignConfigForm({ onSubmit, onCancel }: CampaignConfi
                 </div>
             </div>
 
+            {error && (
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            )}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-100 dark:border-zinc-800">
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 transition"
+                    disabled={submitting}
+                    className="px-4 py-2 rounded-lg border border-zinc-300 dark:border-zinc-700 text-sm font-medium hover:bg-zinc-50 dark:hover:bg-zinc-900 transition disabled:opacity-50"
                 >
                     Cancel
                 </button>
                 <button
                     type="submit"
-                    className="px-6 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm active:scale-95 transition-all"
+                    disabled={submitting}
+                    className="px-6 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 shadow-sm active:scale-95 transition-all disabled:opacity-60"
                 >
-                    Launch Campaign
+                    {submitting ? 'Launching…' : 'Launch Campaign'}
                 </button>
             </div>
         </form>

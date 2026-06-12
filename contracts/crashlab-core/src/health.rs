@@ -1,5 +1,5 @@
-use std::time::Instant;
 use serde::{Serialize, Deserialize};
+use std::time::Instant;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HealthStatus {
@@ -36,6 +36,10 @@ pub struct QueueMetrics {
     pub in_progress: u64,
     pub capacity: u64,
     pub utilization: f64,
+}
+
+pub fn export_health_summary_json(summary: &HealthSummary) -> Result<String, serde_json::Error> {
+    serde_json::to_string_pretty(summary)
 }
 
 pub struct HealthMonitor {
@@ -154,6 +158,10 @@ impl HealthMonitor {
         serde_json::to_string(&self.summary()).unwrap_or_default()
     }
 
+    pub fn export_json(&self) -> Result<String, serde_json::Error> {
+        export_health_summary_json(&self.summary())
+    }
+
     fn compute_status(
         &self,
         throughput: &ThroughputMetrics,
@@ -194,7 +202,6 @@ impl HealthMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::thread;
     use std::time::Duration;
 
     #[test]
@@ -305,10 +312,10 @@ mod tests {
     #[test]
     fn throughput_calculated_over_time() {
         let mut monitor = HealthMonitor::new(100);
+        monitor.start_time = Instant::now() - Duration::from_millis(100);
         for _ in 0..100 {
             monitor.record_case();
         }
-        thread::sleep(Duration::from_millis(100));
 
         let summary = monitor.summary();
         assert!(summary.throughput.cases_per_second > 0.0);
@@ -344,5 +351,19 @@ mod tests {
         assert!(json.contains("\"throughput\""));
         assert!(json.contains("\"failures\""));
         assert!(json.contains("\"queue\""));
+    }
+
+    #[test]
+    fn exports_health_summary_json() {
+        let mut monitor = HealthMonitor::new(100);
+        monitor.record_case();
+        monitor.update_queue(4, 1);
+
+        let json = monitor.export_json().unwrap();
+        let exported: HealthSummary = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(exported.throughput.total_cases, 1);
+        assert_eq!(exported.queue.pending, 4);
+        assert_eq!(exported.queue.in_progress, 1);
     }
 }

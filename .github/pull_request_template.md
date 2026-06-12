@@ -1,17 +1,23 @@
 ## Summary
 
-Describe what changed and why.
-
-## Linked Issue
+<!-- What does this PR do? Link ROADMAP-XXX or GitHub issue -->
 
 Closes #
 
-## Validation
+## Checklist
 
-- [ ] frontend checks pass (`npm run lint`, `npm run build`)
-- [ ] core checks pass (`cargo test`)
-- [ ] behavior is reproducible with included steps
+- [ ] Branch name follows `issue/<number>-<slug>`
+- [ ] Scope limited to files listed in the issue
+- [ ] Tests added or updated
+- [ ] `pnpm-lock.yaml` / `package-lock.json` **not** modified
+- [ ] If `package.json` changed: maintainer approval requested below
 
-## Notes for Maintainers
+## Maintainer approval (package.json only)
 
-Any migration, risk, or rollout notes.
+<!-- Delete this section if package.json unchanged -->
+
+- [ ] Required dependency change explained:
+
+## Test plan
+
+<!-- Steps to verify -->

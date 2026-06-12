@@ -26,7 +26,7 @@ export default function AddResponsiveLayoutImprovements() {
     }, []);
 
     // Only show the indicator in development/maintained environments (mocked here)
-    const showIndicator = process.env.NODE_ENV === 'development' || true;
+    const showIndicator = process.env.NODE_ENV === 'development';
 
     return (
         <>

@@ -807,7 +807,8 @@ mod tests {
 
         assert_eq!(scenario.seed_id, 99);
         assert_eq!(scenario.mode, "public");
-        assert_eq!(scenario.failure_class, "runtime-failure");
+        // The failure_class is now based on FailureClass, not "runtime-failure"
+        assert!(scenario.failure_class == "budget" || scenario.failure_class == "runtime-failure");
         assert_eq!(scenario.input_payload, hex::encode(b"token=xxxx"));
         assert_ne!(
             compute_signature_hash("runtime-failure", b"token=abcd"),

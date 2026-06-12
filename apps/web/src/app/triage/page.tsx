@@ -5,43 +5,65 @@
  * Implements frontend Issue triage board UI for improved UX.
  *
  * Features: kanban-style columns (Failed / Active / Cancelled),
- * loading/error states, keyboard accessibility, responsive layout.
+ * loading/error states, keyboard accessibility, responsive layout,
+ * live issue data fetched from the /api/runs/[id]/issues endpoint.
  */
 
 import { useEffect, useState } from "react";
-import type { FuzzingRun, RunStatus, RunArea, RunSeverity } from "../types";
+import type { FuzzingRun, RunIssueLink } from "../types";
 import {
   TRIAGE_COLUMNS,
   getColumnRuns,
+  getRunsWithIssues,
+  getIssueCounts,
   type TriageColumnDef,
 } from "./triage-board-utils";
 
-const MOCK_RUNS: FuzzingRun[] = Array.from({ length: 18 }, (_, i) => ({
-  id: `run-${1000 + i}`,
-  status: (["failed", "running", "cancelled", "completed"] as RunStatus[])[
-    i % 4
-  ],
-  area: (["auth", "state", "budget", "xdr"] as RunArea[])[i % 4],
-  severity: (["low", "medium", "high", "critical"] as RunSeverity[])[i % 4],
-  duration: 120_000 + i * 30_000,
-  seedCount: 10_000 + i * 1_000,
-  cpuInstructions: 400_000 + i * 10_000,
-  memoryBytes: 1_500_000 + i * 100_000,
-  minResourceFee: 500 + i * 50,
-  crashDetail:
-    i % 4 === 0
-      ? {
-          failureCategory: "InvariantViolation",
-          signature: `sig:${1000 + i}`,
-          payload: "{}",
-          replayAction: `cargo run --bin replay-single-seed -- bundle-${i}.json`,
-        }
-      : null,
-}));
+// ---------------------------------------------------------------------------
+// Data fetching
+// ---------------------------------------------------------------------------
 
 async function fetchRuns(): Promise<FuzzingRun[]> {
-  await new Promise((r) => setTimeout(r, 700));
-  return MOCK_RUNS;
+  const res = await fetch('/api/runs');
+  if (!res.ok) throw new Error('Failed to fetch runs');
+  const data = await res.json();
+  return data.runs as FuzzingRun[];
+}
+
+/**
+ * Fetches associated issues for each run from the real issues API.
+ * Fires requests in parallel and returns a Map keyed by run ID.
+ * Runs whose issue fetch fails are silently skipped (they keep their
+ * existing `associatedIssues` value from the runs payload).
+ */
+async function fetchIssuesForRuns(
+  runs: FuzzingRun[],
+): Promise<Map<string, RunIssueLink[]>> {
+  const issueMap = new Map<string, RunIssueLink[]>();
+
+  const results = await Promise.allSettled(
+    runs.map(async (run) => {
+      const res = await fetch(`/api/runs/${run.id}/issues`);
+      if (!res.ok) return;
+      const data = await res.json();
+      issueMap.set(run.id, (data.issues ?? []) as RunIssueLink[]);
+    }),
+  );
+
+  // Silently ignore rejected promises – runs without issue data
+  // will retain their existing associatedIssues from the runs API.
+  void results;
+
+  return issueMap;
+}
+
+/**
+ * Combined loader: fetches runs then enriches them with live issue data.
+ */
+async function loadTriageData(): Promise<FuzzingRun[]> {
+  const runs = await fetchRuns();
+  const issueMap = await fetchIssuesForRuns(runs);
+  return getRunsWithIssues(runs, issueMap);
 }
 
 // ---------------------------------------------------------------------------
@@ -140,7 +162,42 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+function IssueBadge({ issue }: { issue: RunIssueLink }) {
+  return (
+    <a
+      href={issue.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors truncate max-w-[180px]"
+      title={issue.label}
+    >
+      <svg
+        className="w-3 h-3 flex-shrink-0"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"
+        />
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101"
+        />
+      </svg>
+      <span className="truncate">{issue.label}</span>
+    </a>
+  );
+}
+
 function RunCard({ run }: { run: FuzzingRun }) {
+  const issues = run.associatedIssues ?? [];
   return (
     <article
       className="bg-white dark:bg-zinc-950 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md focus-within:ring-2 focus-within:ring-indigo-500 transition-all"
@@ -170,6 +227,13 @@ function RunCard({ run }: { run: FuzzingRun }) {
           title={run.crashDetail.failureCategory}
         >
           {run.crashDetail.failureCategory}
+        </div>
+      )}
+      {issues.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {issues.map((issue) => (
+            <IssueBadge key={issue.href} issue={issue} />
+          ))}
         </div>
       )}
     </article>
@@ -225,7 +289,7 @@ export default function TriageBoardPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchRuns()
+    loadTriageData()
       .then((data) => {
         if (!cancelled) {
           setRuns(data);
@@ -243,13 +307,15 @@ export default function TriageBoardPage() {
   const handleRetry = () => {
     setDataState("loading");
     setRuns([]);
-    fetchRuns()
+    loadTriageData()
       .then((data) => {
         setRuns(data);
         setDataState("success");
       })
       .catch(() => setDataState("error"));
   };
+
+  const totalIssues = getIssueCounts(runs);
 
   return (
     <div className="max-w-6xl mx-auto w-full px-4 py-10">
@@ -260,6 +326,11 @@ export default function TriageBoardPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           Manage failures and active campaigns in a kanban-style view.
+          {dataState === "success" && totalIssues > 0 && (
+            <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-xs font-semibold">
+              {totalIssues} linked {totalIssues === 1 ? "issue" : "issues"}
+            </span>
+          )}
         </p>
       </div>
 

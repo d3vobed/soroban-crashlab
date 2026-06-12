@@ -131,8 +131,32 @@ export default function ArtifactStorageIntegration() {
   }, []);
 
   useEffect(() => {
-    loadArtifacts();
-  }, [loadArtifacts]);
+    let cancelled = false;
+
+    (async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await fetchArtifacts();
+        if (!cancelled) {
+          setArtifacts(data);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError('Failed to load artifacts from storage backend.');
+          console.error(err);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

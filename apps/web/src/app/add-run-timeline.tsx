@@ -46,6 +46,14 @@ function formatDuration(ms: number): string {
   return parts.join(' ');
 }
 
+const SKELETON_ROWS = [
+  { width: '86%', marginLeft: '0%' },
+  { width: '74%', marginLeft: '4%' },
+  { width: '91%', marginLeft: '2%' },
+  { width: '69%', marginLeft: '7%' },
+  { width: '82%', marginLeft: '1%' },
+];
+
 function TimelineSkeleton() {
   return (
     <section className="w-full rounded-[2.5rem] border border-black/[.08] bg-white/80 p-8 shadow-xl backdrop-blur-md dark:border-white/[.145] dark:bg-zinc-950/80">
@@ -66,8 +74,8 @@ function TimelineSkeleton() {
           ))}
         </div>
         <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full animate-pulse" style={{ width: `${60 + Math.random() * 30}%`, marginLeft: `${Math.random() * 10}%` }} />
+          {SKELETON_ROWS.map((row, index) => (
+            <div key={index} className="h-10 bg-zinc-100 dark:bg-zinc-800 rounded-full animate-pulse" style={row} />
           ))}
         </div>
       </div>

@@ -116,17 +116,12 @@ interface Props {
 
 export default function AddAFuzzyQueryBuilderPage51({ runs = [] }: Props) {
   const [filters, setFilters] = useState<QueryFilter[]>([]);
-  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([]);
+  const [savedQueries, setSavedQueries] = useState<SavedQuery[]>(() => loadQueries());
   const [queryName, setQueryName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [selectedQueryId, setSelectedQueryId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Load saved queries on mount
-  useEffect(() => {
-    setSavedQueries(loadQueries());
-  }, []);
 
   // Persist whenever saved queries change (skip initial empty render)
   const mounted = useRef(false);

@@ -1,19 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NotificationCenter from "./add-notification-center-ui";
 import DarkModeToggle from "./add-dark-mode-support";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+// Using system fonts to avoid external Google Fonts fetch during build
 
 export const metadata: Metadata = {
   title: "Soroban CrashLab | Smart Contract Fuzzing",
@@ -29,7 +20,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        className={`antialiased min-h-screen flex flex-col`}
         style={{ background: "var(--background)", color: "var(--foreground)" }}
       >
         <header
@@ -46,6 +37,12 @@ export default function RootLayout({
           <div className="flex items-center gap-4">
             <nav className="flex gap-4 text-sm font-medium">
               <Link
+                href="/"
+                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                Dashboard
+              </Link>
+              <Link
                 href="/logs"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               >
@@ -57,48 +54,40 @@ export default function RootLayout({
               >
                 Triage
               </Link>
-              <a
-                href="/add-accessible-keyboard-nav-blueprint-page-49"
-                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                Keyboard Nav
-              </a>
-              <a
-                href="/implement-alerting-settings-page-54"
-                className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-              >
-                Alerts
-              </a>
               <Link
-                href="/#reporting-templates"
+                href="/trends"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
               >
-                Templates
+                Trends
               </Link>
-              <a
-                href="https://github.com/SorobanCrashLab/soroban-crashlab"
+              <Link
+                href="/maintainer"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
               >
-                GitHub
-              </a>
-              <a
-                href="https://github.com/SorobanCrashLab/soroban-crashlab/issues"
+                Maintainer
+              </Link>
+              <Link
+                href="/settings/alerting"
                 className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                target="_blank"
-                rel="noopener noreferrer"
               >
-                Open Issues
-              </a>
+                Settings
+              </Link>
             </nav>
             <NotificationCenter />
             <DarkModeToggle />
           </div>
         </header>
         <main className="flex-1 flex flex-col">{children}</main>
-        <footer className="border-t border-black/[.08] dark:border-white/[.145] p-6 text-center text-sm text-zinc-500">
-          Built for Stellar Wave 4 &middot; Soroban Ecosystem
+        <footer className="border-t border-black/8 dark:border-white/15 p-6 text-center text-sm text-zinc-500">
+          Built for Stellar &middot; Soroban Ecosystem &middot;{" "}
+          <a
+            href="https://github.com/SorobanCrashLab/soroban-crashlab/milestone/1"
+            className="underline hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Roadmap
+          </a>
         </footer>
       </body>
     </html>

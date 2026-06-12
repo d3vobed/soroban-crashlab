@@ -1,6 +1,5 @@
 "use client";
-
-import { useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import type { FuzzingRun } from "./types";
 import { simulateSeedReplay } from "./replay";
 
@@ -58,6 +57,7 @@ export default function AddRunReplayUi({ runs = [] }: AddRunReplayUiProps) {
   });
   const [result, setResult] = useState<ReplayResult | null>(null);
   const [replayHistory, setReplayHistory] = useState<ReplayResult[]>([]);
+  const [now, setNow] = useState(() => Date.now());
 
   const handleSelectRun = (runId: string) => {
     const run = runs.find((r) => r.id === runId);
@@ -76,11 +76,13 @@ export default function AddRunReplayUi({ runs = [] }: AddRunReplayUiProps) {
           ? Math.floor(selectedRun.seedCount * 0.1)
           : config.customSeeds.split(",").filter((s) => s.trim()).length;
 
+    const startedAt = Date.now();
+
     setProgress({
       status: "running",
       current: 0,
       total: totalSeeds,
-      startTime: Date.now(),
+      startTime: startedAt,
     });
     setResult(null);
 
@@ -96,7 +98,7 @@ export default function AddRunReplayUi({ runs = [] }: AddRunReplayUiProps) {
 
       const { newRunId } = await simulateSeedReplay(selectedRun.id);
       const endTime = Date.now();
-      const duration = endTime - (progress.startTime ?? endTime);
+      const duration = endTime - startedAt;
 
       const replayResult: ReplayResult = {
         runId: newRunId,
@@ -124,7 +126,17 @@ export default function AddRunReplayUi({ runs = [] }: AddRunReplayUiProps) {
         endTime: Date.now(),
       }));
     }
-  }, [selectedRun, config, progress.startTime]);
+  }, [selectedRun, config]);
+
+  useEffect(() => {
+    if (progress.status !== "running" || !progress.startTime) return;
+
+    const interval = window.setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [progress.startTime, progress.status]);
 
   const handleStopReplay = () => {
     setProgress((prev) => ({
@@ -382,7 +394,7 @@ export default function AddRunReplayUi({ runs = [] }: AddRunReplayUiProps) {
               {progress.startTime && (
                 <div className="text-xs text-zinc-500">
                   Elapsed:{" "}
-                  {Math.floor((Date.now() - progress.startTime) / 1000)}s
+                  {Math.floor((now - progress.startTime) / 1000)}s
                 </div>
               )}
             </div>

@@ -3,7 +3,7 @@
 //! This module provides high-level functions for importing external seed files
 //! into the local mutation corpus with comprehensive validation and error handling.
 
-use crate::{CaseSeed, SeedSchema, Validate};
+use crate::{CaseSeed, SeedSchema};
 use serde_json;
 use std::fmt;
 
