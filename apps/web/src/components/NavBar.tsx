@@ -99,7 +99,7 @@ export default function NavBar() {
           {/* Search - hidden on small mobile */}
           <div
             className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full"
-            style={{ background: theme === 'dark' ? '#1a1a1a' : '#EEF3F8' }}
+            style={{ background: mounted ? (theme === 'dark' ? '#1a1a1a' : '#EEF3F8') : 'var(--hover-bg)' }}
           >
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>🔍</span>
             <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>Search runs...</span>
@@ -190,16 +190,18 @@ export default function NavBar() {
 
           <div className="divider mx-4 my-2" />
 
-          <button
-            onClick={toggle}
-            className="drawer-item w-full text-left"
-            style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
-          >
-            <span className="text-sm w-5 text-center">
-              {theme === 'dark' ? '☀' : '☾'}
-            </span>
-            <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
+          {mounted && (
+            <button
+              onClick={toggle}
+              className="drawer-item w-full text-left"
+              style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}
+            >
+              <span className="text-sm w-5 text-center">
+                {theme === 'dark' ? '☀' : '☾'}
+              </span>
+              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+          )}
         </div>
       </div>
     </>
